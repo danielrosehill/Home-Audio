@@ -51,3 +51,23 @@ Checked against `music_assistant/controllers/config/flows.py` at tag 2.10.11 and
   instance's `config/providers/get` does not show the URL (it is a setup value), so dedupe by
   podcast title from `music/podcasts/library_items`. The feed's episodes appear in the
   library within seconds.
+
+## Household commands (2.10.11)
+
+Names and args from source (`@api_command` decorators, tag 2.10.11); "live" = called on a
+real server 2026-11-14.
+
+| Command | Args | Checked |
+|---|---|---|
+| `players/sleep_timer/set` / `get` / `clear` | `player_id`, `seconds` (set). `get` returns epoch end or null; 500 on some idle players | live |
+| `player_queues/transfer` | `source_queue_id`, `target_queue_id`, `auto_play?` | source |
+| `player_queues/get_active_queue` | `player_id` | source |
+| `players/cmd/play_announcement` | `player_id`, `url?`, `message?`, `tts_engine?`, `language?`, `volume_level?`, `pre_announce?`, `pre_announce_url?` | source |
+| `players/tts_engines` | none; `[{uid,name}]` | live |
+| `music/recently_played_items` | `limit?`, `media_types?`, `fully_played_only?`, `queue_id?`, ... | live |
+| `music/in_progress_items` | `limit?`, `all_users?`, `providers?` | live |
+| `music/podcasts/podcast_episodes` | `item_id`, `provider_instance_id_or_domain` | live |
+| `builtin/add_radio`, `builtin/add_track` | `url`, `name`, `image_url?` | source |
+| `music/sync` | `media_types?`, `providers?` | source |
+| `config/providers/reload` | `instance_id` | source |
+| `providers`, `providers/manifests` | none | live |

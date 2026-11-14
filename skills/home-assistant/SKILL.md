@@ -40,7 +40,7 @@ Avoid double control: a Squeezelite player under MA should be driven through the
    - `$HA POST /api/services/music_assistant/play_media '{"entity_id":"media_player.<x>","media_id":"<name or uri>","media_type":"playlist","enqueue":"replace"}'`
    - Volume: `/api/services/media_player/volume_set` `{"entity_id","volume_level":0.0-1.0}`
    - Group: `/api/services/media_player/join` `{"entity_id","group_members":[...]}`
-   - Announce: `/api/services/music_assistant/play_announcement` `{"entity_id","url"}` or
+   - Announce: `/api/services/music_assistant/play_announcement` `{"entity_id","message","tts_entity_id"}` or `{"entity_id","url"}`, or
      `tts.speak` with `media_player_entity_id`.
    Add `?return_response` for actions that return data (`search`, `get_queue`).
 4. **Automations**: write YAML (`${CLAUDE_PLUGIN_ROOT}/reference/home-assistant.md` has patterns: resume after

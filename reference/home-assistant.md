@@ -8,7 +8,7 @@ data), config entries under `/api/config/config_entries/*`, automations under
 `music_assistant` actions (integration docs, checked 2026-11-14): `play_media`
 (`media_id`, `media_type`, `artist`, `album`, `enqueue`, `radio_mode`), `search`,
 `get_library`, `get_queue`, `transfer_queue` (`source_player`, `auto_play`),
-`play_announcement` (`url`, `use_pre_announce`, `announce_volume`). Needs MA server 2.4+.
+`play_announcement` (`message`, `tts_entity_id`, `url`, `use_pre_announce`, `pre_announce_url`, `announce_volume`). Needs MA server 2.4+.
 
 ## Automation patterns
 

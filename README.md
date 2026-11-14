@@ -22,6 +22,12 @@ private git repo.
 | `set-speaker` | Changes an endpoint's output device: ALSA card, PipeWire sink, second speaker |
 | `debug` | Walks source -> server -> network -> client -> device, with a 10-90 s test play to a speaker or group; records the fix |
 | `groups` | Multi-room sync in MA, Snapcast, LMS or HA |
+| `now-playing` | What each room is playing, sleep timers, recent and in-progress items |
+| `move-music` | Move the playing queue to another room, or extend it |
+| `announce` | Speak or play an announcement on rooms or groups (MA TTS or HA) |
+| `sleep-and-alarms` | Sleep timers, fade-outs, wake-up music via an HA automation |
+| `podcasts-radio` | Add feeds or an OPML, latest episodes, resume, radio streams |
+| `library-providers` | Provider health, add a source via the setup flow, reload, resync |
 | `music-assistant` | MA API: players, play media, volume, queues, playlists, DSP presets, logs, announcements |
 | `home-assistant` | `music_assistant` / `snapcast` / `squeezebox` integrations, media_player calls, automations |
 
@@ -39,6 +45,12 @@ audioctl.py snap-status                     # Snapcast groups and clients
 audioctl.py ha GET /api/states/media_player.kitchen
 audioctl.py test-play -p "Living Room" -s 30 --volume 40   # 10/30/60/90 s of known media
 audioctl.py ma-add-podcast --opml https://example.com/feeds.opml
+audioctl.py now-playing --history 5
+audioctl.py transfer --to Kitchen
+audioctl.py announce "Dinner is ready" -p Kitchen --engine <uid>
+audioctl.py sleep 30 -p Bedroom
+audioctl.py episodes "<podcast>" --play "Living Room"
+audioctl.py providers --problems
 ```
 
 ## Overlay (your private data)

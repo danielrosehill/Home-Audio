@@ -402,6 +402,150 @@ def cmd_ma_add_podcast(a):
                       "existing_podcasts": sorted(n for _, n in names if n), "added": out}, indent=2))
 
 
+# ---------- Household helpers (now-playing, transfer, announce, sleep, podcasts, providers) ----------
+
+def _quiet_ma(command, args=None):
+    import contextlib
+    import io
+    try:
+        with contextlib.redirect_stderr(io.StringIO()):
+            return ma_call(command, args)
+    except SystemExit:
+        return None
+
+
+def _sleep_info(end):
+    """players/sleep_timer/get returns the end time as epoch seconds, or null."""
+    import datetime
+    import time
+    if not end:
+        return {"sleep_timer": None}
+    return {"sleep_timer": {"ends_at": datetime.datetime.fromtimestamp(end).isoformat(timespec="seconds"),
+                            "minutes_left": round((end - time.time()) / 60, 1)}}
+
+
+def _items(res):
+    return res.get("items", res) if isinstance(res, dict) else (res or [])
+
+
+def cmd_now_playing(a):
+    import time
+    players = {p["player_id"]: p for p in ma_call("players/all") or []}
+    rows = []
+    for q in ma_call("player_queues/all") or []:
+        p = players.get(q.get("queue_id"), {})
+        state = q.get("state")
+        if state not in ("playing", "paused") and not a.all:
+            continue
+        ci = q.get("current_item") or {}
+        mi = ci.get("media_item") or {}
+        el, upd = q.get("elapsed_time"), q.get("elapsed_time_last_updated")
+        if el is not None and upd and state == "playing":
+            el += max(0.0, time.time() - upd)
+        sleep = None
+        if state in ("playing", "paused"):  # 500s on some idle/unavailable players (2.10.11)
+            sleep = _quiet_ma("players/sleep_timer/get", {"player_id": q.get("queue_id")})
+        rows.append({"room": q.get("display_name") or p.get("display_name") or p.get("name"),
+                     "queue_id": q.get("queue_id"), "state": state,
+                     "title": ci.get("name") or mi.get("name"),
+                     "artist": ", ".join(x.get("name", "") for x in mi.get("artists") or []) or None,
+                     "elapsed": None if el is None else round(el),
+                     "duration": ci.get("duration"), "volume": p.get("volume_level"),
+                     "group_childs": p.get("group_childs") or [], **_sleep_info(sleep)})
+    out = {"active": rows}
+    if a.history:
+        out["recently_played"] = [{"name": i.get("name"), "uri": i.get("uri"), "type": i.get("media_type")}
+                                  for i in _items(ma_call("music/recently_played_items", {"limit": a.history}))]
+        out["in_progress"] = [{"name": i.get("name"), "uri": i.get("uri"), "type": i.get("media_type")}
+                              for i in _items(ma_call("music/in_progress_items", {"limit": a.history}))]
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def cmd_transfer(a):
+    target = resolve_players([a.to])[0]["player_id"]
+    if a.source:
+        source = resolve_players([a.source])[0]["player_id"]
+    else:
+        playing = [q for q in ma_call("player_queues/all") or [] if q.get("state") == "playing"]
+        if len(playing) != 1:
+            die(f"{len(playing)} queues playing; pass --from: {[q.get('display_name') for q in playing]}")
+        source = playing[0]["queue_id"]
+    ma_call("player_queues/transfer", {"source_queue_id": source, "target_queue_id": target,
+                                       "auto_play": not a.no_play})
+    print(json.dumps({"from": source, "to": target, "target_now": player_brief(target)}, indent=2))
+
+
+def cmd_announce(a):
+    out = []
+    for p in resolve_players(a.player):
+        args = {"player_id": p["player_id"]}
+        if a.url:
+            args["url"] = a.url
+        else:
+            args["message"] = a.message or die("give a message or --url")
+        for k, v in (("tts_engine", a.engine), ("language", a.language), ("volume_level", a.volume)):
+            if v is not None:
+                args[k] = v
+        if a.no_chime:
+            args["pre_announce"] = False
+        ma_call("players/cmd/play_announcement", args)
+        out.append({"player": p.get("display_name") or p.get("name"), "sent": args})
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+def cmd_sleep(a):
+    out = []
+    for p in resolve_players(a.player):
+        pid = p["player_id"]
+        if a.minutes == 0:
+            ma_call("players/sleep_timer/clear", {"player_id": pid})
+        else:
+            ma_call("players/sleep_timer/set", {"player_id": pid, "seconds": int(a.minutes * 60)})
+        out.append({"player": p.get("display_name") or p.get("name"),
+                    **_sleep_info(ma_call("players/sleep_timer/get", {"player_id": pid}))})
+    print(json.dumps(out, indent=2))
+
+
+def _find_podcast(name: str) -> dict:
+    pods = _items(ma_call("music/podcasts/library_items", {"limit": 1000}))
+    nl = name.lower()
+    hit = [x for x in pods if x.get("name", "").lower() == nl] or [x for x in pods if nl in x.get("name", "").lower()]
+    if len(hit) != 1:
+        die(f"podcast {name!r} matched {len(hit)}: {[x.get('name') for x in hit][:20]}")
+    return hit[0]
+
+
+def cmd_episodes(a):
+    pod = _find_podcast(a.podcast)
+    eps = _items(ma_call("music/podcasts/podcast_episodes",
+                         {"item_id": pod["item_id"], "provider_instance_id_or_domain": "library"}))
+    eps = sorted(eps, key=lambda e: e.get("position") or 0, reverse=True)
+    rows = [{"name": e.get("name"), "uri": e.get("uri"), "duration": e.get("duration"),
+             "resume_s": (e.get("resume_position_ms") or 0) // 1000 or None,
+             "played": e.get("fully_played")} for e in eps[: a.limit]]
+    if a.play:
+        target = resolve_players([a.play])[0]["player_id"]
+        ma_call("player_queues/play_media", {"queue_id": target, "media": rows[0]["uri"], "option": "play"})
+        print(json.dumps({"podcast": pod.get("name"), "playing": rows[0], "on": target}, indent=2, ensure_ascii=False))
+        return
+    print(json.dumps({"podcast": pod.get("name"), "uri": pod.get("uri"), "episodes": rows}, indent=2, ensure_ascii=False))
+
+
+def cmd_providers(a):
+    live = {p.get("instance_id"): p for p in ma_call("providers") or []}
+    rows = []
+    for c in ma_call("config/providers") or []:
+        iid = c.get("instance_id")
+        if a.domain and c.get("domain") != a.domain:
+            continue
+        rows.append({"domain": c.get("domain"), "instance_id": iid, "name": c.get("name"),
+                     "enabled": c.get("enabled"), "loaded": iid in live and live[iid].get("available", True),
+                     "last_error": c.get("last_error")})
+    if a.problems:
+        rows = [r for r in rows if r["enabled"] and (r["last_error"] or not r["loaded"])]
+    print(json.dumps(rows, indent=2, ensure_ascii=False))
+
+
 def cmd_config(a):
     shown = {k: v for k, v in sorted(CFG.items())}
     shown["_overlay_dir"] = str(overlay_dir())
@@ -433,6 +577,26 @@ def main():
     p = sub.add_parser("ma-add-podcast", help="add podcast RSS feeds to Music Assistant (one provider instance each)")
     p.add_argument("url", nargs="*", help="feed URLs"); p.add_argument("--opml", help="OPML URL: add every xmlUrl in it")
     p.set_defaults(fn=cmd_ma_add_podcast)
+    p = sub.add_parser("now-playing", help="what each room is playing (MA)")
+    p.add_argument("--all", action="store_true", help="include idle queues"); p.add_argument("--history", type=int, metavar="N", help="also N recently played / in-progress items")
+    p.set_defaults(fn=cmd_now_playing)
+    p = sub.add_parser("transfer", help="move the playing queue to another room (MA)")
+    p.add_argument("--to", required=True); p.add_argument("--from", dest="source"); p.add_argument("--no-play", action="store_true")
+    p.set_defaults(fn=cmd_transfer)
+    p = sub.add_parser("announce", help="speak a message (MA TTS) or play a URL as an announcement")
+    p.add_argument("message", nargs="?"); p.add_argument("--player", "-p", action="append", required=True)
+    p.add_argument("--url"); p.add_argument("--engine", help="TTS engine uid (players/tts_engines)"); p.add_argument("--language")
+    p.add_argument("--volume", type=int); p.add_argument("--no-chime", action="store_true")
+    p.set_defaults(fn=cmd_announce)
+    p = sub.add_parser("sleep", help="sleep timer: stop after N minutes (0 clears)")
+    p.add_argument("minutes", type=float); p.add_argument("--player", "-p", action="append", required=True)
+    p.set_defaults(fn=cmd_sleep)
+    p = sub.add_parser("episodes", help="latest episodes of a library podcast; --play <room> plays the newest")
+    p.add_argument("podcast"); p.add_argument("--limit", type=int, default=5); p.add_argument("--play", metavar="ROOM")
+    p.set_defaults(fn=cmd_episodes)
+    p = sub.add_parser("providers", help="MA provider health: enabled, loaded, last_error")
+    p.add_argument("--domain"); p.add_argument("--problems", action="store_true", help="only enabled providers with an error or not loaded")
+    p.set_defaults(fn=cmd_providers)
     a = ap.parse_args()
     a.fn(a)
 

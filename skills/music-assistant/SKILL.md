@@ -34,7 +34,7 @@ expired token. `GET <url>/info` needs no token and gives the version.
 | Play media | `player_queues/play_media {"queue_id":<player_id>,"media":"<uri or list>","option":"play|replace|next|add"}` |
 | Find media | `music/search {"search_query","media_types":["track","playlist",...],"limit":5}`; `music/item_by_uri {"uri"}` |
 | Queue | `player_queues/get {"queue_id"}`, `player_queues/items {"queue_id","limit","offset"}` |
-| Announcement / TTS | `players/cmd/play_announcement {"player_id","url","volume_level"}` |
+| Announcement / TTS | `players/cmd/play_announcement {"player_id","message"|"url","tts_engine","language","volume_level","pre_announce"}`; engines `players/tts_engines` (`audioctl.py announce`) |
 | Sync players | `players/cmd/set_members {"target_player","player_ids_to_add":[...],"player_ids_to_remove":[...]}`; older: `group_many`, `ungroup` |
 | Group player | `players/create_group_player {"provider","name","members":[...]}` |
 | Playlists | `music/playlists/library_items`, `music/playlists/create_playlist {"name"}`, `music/playlists/add_playlist_tracks {"db_playlist_id","uris"}`, `music/playlists/remove_playlist_tracks`, `music/playlists/playlist_tracks` |
@@ -43,6 +43,9 @@ expired token. `GET <url>/info` needs no token and gives the version.
 | Providers | `config/providers` |
 | Add a provider | `config/providers/setup {"provider_domain"}` returns a form step with `flow_id`; then `config/flows/submit {"flow_id","values":{...}}` until `type` is `finish` (result `instance_id`). `config/providers/save` refuses new providers |
 | Add podcasts | `audioctl.py ma-add-podcast <feed url>... [--opml <url>]`: one `podcastfeed` instance per feed via the setup flow (`values: {"feed_url"}`); list with `music/podcasts/library_items` |
+| Sleep timer | `players/sleep_timer/set {"player_id","seconds"}`, `/get`, `/clear` (`audioctl.py sleep`) |
+| Move queue | `player_queues/transfer {"source_queue_id","target_queue_id","auto_play"}` (`audioctl.py transfer`) |
+| Queue tools | `player_queues/save_as_playlist {"queue_id","name"}`, `shuffle`, `repeat`, `crossfade`, `dont_stop_the_music`; `players/add_currently_playing_to_favorites`; `music/favorites/add_item` |
 | Test playback | `audioctl.py test-play -p <player> -s 10|30|60|90 [--volume N]` (see the debug skill) |
 | Logs | `logging/get` (admin scope) |
 
