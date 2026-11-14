@@ -1,0 +1,13 @@
+# User unit for snapclient through PipeWire. Install: ~/.config/systemd/user/snapclient.service
+# Disable the system unit first: sudo systemctl disable --now snapclient
+[Unit]
+Description=Snapcast client via PipeWire (<hostID>)
+After=pipewire.service pipewire-pulse.service wireplumber.service network-online.target
+
+[Service]
+ExecStart=/usr/bin/snapclient --host <server> --hostID <hostID> --player pulse
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

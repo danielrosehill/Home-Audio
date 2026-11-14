@@ -1,0 +1,13 @@
+{
+  "name": "podcast-default",
+  "notes": "Spoken word on full-range speakers: cut rumble and mud, lift presence, tame sibilance. Map bands into the shape config/players/dsp/get returns.",
+  "preamp_db": -2.0,
+  "bands": [
+    {"type": "high_pass", "frequency": 70, "q": 0.7},
+    {"type": "peaking", "frequency": 200, "gain_db": -3.0, "q": 1.0},
+    {"type": "peaking", "frequency": 500, "gain_db": -1.5, "q": 1.2},
+    {"type": "peaking", "frequency": 2500, "gain_db": 3.0, "q": 1.0},
+    {"type": "peaking", "frequency": 4000, "gain_db": 2.0, "q": 1.4},
+    {"type": "peaking", "frequency": 7000, "gain_db": -2.5, "q": 3.0}
+  ]
+}

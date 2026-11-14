@@ -1,0 +1,16 @@
+# User unit for a desktop endpoint playing through PipeWire.
+# Install: ~/.config/systemd/user/squeezelite.service ; systemctl --user enable --now squeezelite
+# Headless: loginctl enable-linger <user>
+[Unit]
+Description=Squeezelite player via PipeWire (<name>)
+After=pipewire.service pipewire-pulse.service wireplumber.service network-online.target
+
+[Service]
+# Pin the sink so a moved desktop default does not move the speaker. Remove to follow the default.
+Environment=PULSE_SINK=<sink name from pactl list short sinks>
+ExecStart=/usr/bin/squeezelite -n <name> -o pulse -s <server> -m <mac>
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

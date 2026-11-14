@@ -1,0 +1,16 @@
+# System unit for a headless endpoint playing straight to ALSA.
+# Replace <name>, <device>, <server>, <mac>. Install: /etc/systemd/system/squeezelite.service
+[Unit]
+Description=Squeezelite player (<name>)
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/squeezelite -n <name> -o <device> -s <server> -m <mac> -C 5
+Restart=always
+RestartSec=5
+User=squeezelite
+Group=audio
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,51 @@
+{
+  "schema": "home-audio/installation/1",
+  "updated": "YYYY-MM-DD",
+  "primary_backend": "music-assistant",
+  "servers": [
+    {
+      "id": "ma",
+      "backend": "music-assistant | lms | snapserver",
+      "host": "",
+      "ip": "",
+      "ports": [],
+      "deployed_as": "ha-addon | docker-compose | package",
+      "deployment_ref": "where the compose file / add-on config lives",
+      "version": "",
+      "providers": ["squeezelite", "snapcast"],
+      "status": "active | retired",
+      "confirmed": "YYYY-MM-DD"
+    }
+  ],
+  "endpoints": [
+    {
+      "host": "",
+      "ip": "",
+      "mac": "",
+      "room": "",
+      "player_name": "",
+      "client": "squeezelite | snapclient | shairport-sync | librespot",
+      "client_version": "",
+      "unit": "squeezelite.service (system) | snapclient.service (user)",
+      "config_file": "/etc/default/squeezelite",
+      "server": "server id",
+      "output_device": "plughw:CARD=X,DEV=0 | pulse sink name",
+      "hardware": "speaker/DAC/amp",
+      "network": "wired | wifi",
+      "status": "active | missing | retired",
+      "confirmed": "YYYY-MM-DD",
+      "missing_since": null
+    }
+  ],
+  "groups": [
+    {"name": "", "layer": "music-assistant | snapcast | lms | home-assistant", "members": []}
+  ],
+  "home_assistant": {
+    "url": "",
+    "integrations": [],
+    "entities": {"<endpoint host>": "media_player.<id>"}
+  },
+  "history": [
+    {"date": "YYYY-MM-DD", "change": ""}
+  ]
+}

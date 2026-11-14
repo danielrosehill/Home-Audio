@@ -1,0 +1,12 @@
+{
+  "name": "home-audio",
+  "version": "1.0.0",
+  "description": "Network speakers and multi-room audio across backends (Music Assistant, Lyrion/Squeezelite, Snapcast): install servers and clients, inventory, set speakers, debug, drive the MA and Home Assistant APIs. Your installation lives in a private overlay.",
+  "author": {
+    "name": "Daniel Rosehill",
+    "url": "https://github.com/danielrosehill"
+  },
+  "repository": "https://github.com/danielrosehill/Home-Audio",
+  "license": "MIT",
+  "keywords": ["audio", "multi-room", "music-assistant", "squeezelite", "lyrion", "lms", "snapcast", "home-assistant", "speakers", "smart-home"]
+}

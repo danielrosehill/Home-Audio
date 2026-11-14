@@ -1,0 +1,10 @@
+{
+  "name": "podcast-small-speaker",
+  "notes": "Spoken word on small/desktop speakers that already lack bass: presence lift and de-essing only.",
+  "preamp_db": -2.0,
+  "bands": [
+    {"type": "peaking", "frequency": 2500, "gain_db": 3.5, "q": 1.0},
+    {"type": "peaking", "frequency": 4000, "gain_db": 2.5, "q": 1.4},
+    {"type": "peaking", "frequency": 7000, "gain_db": -2.0, "q": 3.0}
+  ]
+}
