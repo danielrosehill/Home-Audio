@@ -21,6 +21,9 @@ profile.env names the environment variable that holds each token.
   audioctl.py ha POST /api/services/media_player/volume_set '{"entity_id":"media_player.kitchen","volume_level":0.3}'
   audioctl.py scan --subnet 192.168.1.0/24
   audioctl.py mdns
+  audioctl.py test-play -p "Living Room" -s 30 --volume 40
+  audioctl.py test-play -p "All Home" -s 60     # a group is a player too
+  audioctl.py ma-add-podcast --opml https://example.com/feeds.opml
 """
 from __future__ import annotations
 
@@ -146,7 +149,11 @@ def ma_call(command: str, args: dict | None = None):
     res = http_json(f"{base}/api", {"message_id": "1", "command": command, "args": args or {}}, headers)
     if isinstance(res, dict) and "error_code" in res:
         die(f"Music Assistant error {res.get('error_code')}: {res.get('details')}")
-    return res.get("result", res) if isinstance(res, dict) and "result" in res else res
+    # The HTTP /api returns the result bare. Unwrap only a WebSocket-style envelope:
+    # a bare result can itself carry a "result" key (setup-flow steps do).
+    if isinstance(res, dict) and "message_id" in res and "result" in res:
+        return res["result"]
+    return res
 
 
 def cmd_ma(a):
@@ -286,6 +293,115 @@ def cmd_mdns(a):
     print(json.dumps(rows, indent=2))
 
 
+# ---------- Test playback (through Music Assistant) ----------
+
+TEST_SECONDS = (10, 30, 60, 90)
+
+
+def resolve_players(wanted: list[str]) -> list[dict]:
+    players = ma_call("players/all") or []
+    out = []
+    for w in wanted:
+        wl = w.lower()
+        hit = [p for p in players if p.get("player_id") == w] or \
+              [p for p in players if wl in ((p.get("display_name") or "").lower(), (p.get("name") or "").lower())]
+        if len(hit) != 1:
+            names = [f'{p.get("display_name") or p.get("name")} ({p.get("player_id")})' for p in players]
+            die(f"player {w!r} matched {len(hit)}; players: {names}")
+        out.append(hit[0])
+    return out
+
+
+def player_brief(pid: str) -> dict:
+    import time
+    p = ma_call("players/get", {"player_id": pid}) or {}
+    cm = p.get("current_media") or {}
+    state = p.get("playback_state") or p.get("state")
+    # elapsed_time is a snapshot taken at elapsed_time_last_updated; extrapolate while playing
+    el, upd = p.get("elapsed_time"), p.get("elapsed_time_last_updated")
+    if el is not None and upd and state == "playing":
+        el = el + max(0.0, time.time() - upd)
+    return {"player_id": pid, "name": p.get("display_name") or p.get("name"),
+            "available": p.get("available"), "powered": p.get("powered"),
+            "state": state,
+            "volume": p.get("volume_level"), "elapsed": None if el is None else round(el, 1),
+            "media": cm.get("title") or cm.get("uri"),
+            "group_childs": p.get("group_childs") or p.get("group_members") or []}
+
+
+def cmd_test_play(a):
+    import time
+    media = a.media or setting("HOME_AUDIO_TEST_MEDIA") or \
+        die("no test media: pass --media <uri> or set HOME_AUDIO_TEST_MEDIA in profile.env")
+    targets = resolve_players(a.player)
+    before, during, problems = {}, {}, []
+    for p in targets:
+        if not p.get("available"):
+            problems.append(f'{p.get("display_name") or p.get("name")}: not available in MA (client not connected)')
+    t0 = time.time()
+    try:
+        for p in targets:
+            pid = p["player_id"]
+            before[pid] = player_brief(pid)
+            if a.volume is not None:
+                ma_call("players/cmd/volume_set", {"player_id": pid, "volume_level": a.volume})
+            ma_call("player_queues/play_media", {"queue_id": pid, "media": media, "option": "replace"})
+        time.sleep(min(5, a.seconds / 2))
+        for p in targets:
+            during[p["player_id"]] = [player_brief(p["player_id"])]
+        print(json.dumps({"status": "started", "media": media, "seconds": a.seconds,
+                          "players": list(during.values())}, indent=2), flush=True)
+        time.sleep(max(0, a.seconds - (time.time() - t0)))
+        for p in targets:
+            pid = p["player_id"]
+            first, last = during[pid][0], player_brief(pid)
+            during[pid].append(last)
+            if last["state"] != "playing":
+                problems.append(f'{last["name"]}: state {last["state"]!r} at the end')
+            elif (first["elapsed"] is not None and last["elapsed"] is not None
+                  and last["elapsed"] - first["elapsed"] < (a.seconds - 5) * 0.5):
+                problems.append(f'{last["name"]}: elapsed only moved {first["elapsed"]} -> {last["elapsed"]}')
+    finally:
+        for pid, b in before.items():
+            ma_call("players/cmd/stop", {"player_id": pid})
+            if a.volume is not None and b.get("volume") is not None:
+                ma_call("players/cmd/volume_set", {"player_id": pid, "volume_level": b["volume"]})
+        time.sleep(1.5)  # MA applies stop/volume asynchronously
+    # Power is left alone: powering a Squeezelite player off via MA re-paused it (MA 2.x, 2026-11-14).
+    print(json.dumps({"status": "done", "server_side_ok": not problems, "problems": problems,
+                      "samples": during,
+                      "restored": [player_brief(pid) for pid in before]}, indent=2))
+    print("server_side_ok only says MA thinks it played. Ask the listener what they heard.", file=sys.stderr)
+
+
+def cmd_ma_add_podcast(a):
+    """One podcastfeed provider instance per feed, created through MA's setup flow
+    (config/providers/save refuses new providers). Does not dedupe: MA does not expose an
+    instance's feed URL, so compare existing_podcasts (by title) before re-running."""
+    have = set()
+    for c in ma_call("config/providers") or []:
+        if c.get("domain") == "podcastfeed":
+            have.add(c.get("instance_id"))
+    names = {(m.get("provider_instance"), i.get("name")) for i in
+             (ma_call("music/podcasts/library_items", {"limit": 1000}) or [])
+             for m in i.get("provider_mappings", [])}
+    urls = list(a.url)
+    if a.opml:
+        import re
+        body = urllib.request.urlopen(a.opml, timeout=20).read().decode()
+        urls += re.findall(r'xmlUrl="([^"]+)"', body)
+    out = []
+    for url in urls:
+        step = ma_call("config/providers/setup", {"provider_domain": "podcastfeed"})
+        if step.get("type") != "form":
+            out.append({"url": url, "error": step.get("reason") or step.get("type")}); continue
+        res = ma_call("config/flows/submit", {"flow_id": step["flow_id"], "values": {"feed_url": url}})
+        out.append({"url": url, "type": res.get("type"), "errors": res.get("errors") or None,
+                    "instance_id": (res.get("result") or {}).get("instance_id")})
+    print(json.dumps({"existing_podcastfeed_instances": len(have),
+                      "existing_podcasts": sorted(n for _, n in names if n), "added": out}, indent=2))
+
+
 def cmd_config(a):
     shown = {k: v for k, v in sorted(CFG.items())}
     shown["_overlay_dir"] = str(overlay_dir())
@@ -308,6 +424,15 @@ def main():
     p = sub.add_parser("scan", help="TCP-probe hosts for audio ports"); p.add_argument("--subnet"); p.add_argument("--hosts", nargs="*")
     p.add_argument("--ports"); p.add_argument("--timeout", type=float, default=0.4); p.set_defaults(fn=cmd_scan)
     p = sub.add_parser("mdns", help="audio-related mDNS services (avahi)"); p.add_argument("--timeout", type=int, default=5); p.set_defaults(fn=cmd_mdns)
+    p = sub.add_parser("test-play", help="play test media to Music Assistant players or groups for 10-90 s, check MA's state, stop and restore")
+    p.add_argument("--player", "-p", action="append", required=True, help="player or group: id or name; repeat for several")
+    p.add_argument("--seconds", "-s", type=int, choices=TEST_SECONDS, default=30)
+    p.add_argument("--media", "-m", help="MA uri (default HOME_AUDIO_TEST_MEDIA from profile.env)")
+    p.add_argument("--volume", type=int, help="player volume 0-100 for the test, restored after")
+    p.set_defaults(fn=cmd_test_play)
+    p = sub.add_parser("ma-add-podcast", help="add podcast RSS feeds to Music Assistant (one provider instance each)")
+    p.add_argument("url", nargs="*", help="feed URLs"); p.add_argument("--opml", help="OPML URL: add every xmlUrl in it")
+    p.set_defaults(fn=cmd_ma_add_podcast)
     a = ap.parse_args()
     a.fn(a)
 

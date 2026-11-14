@@ -41,6 +41,9 @@ expired token. `GET <url>/info` needs no token and gives the version.
 | DSP | `config/players/dsp/get {"player_id"}`, `config/players/dsp/save {"player_id","config"}`, `config/players/dsp/apply_preset {"player_id","preset_id"}` |
 | Player settings | `config/players/get {"player_id"}`, `config/players/save` |
 | Providers | `config/providers` |
+| Add a provider | `config/providers/setup {"provider_domain"}` returns a form step with `flow_id`; then `config/flows/submit {"flow_id","values":{...}}` until `type` is `finish` (result `instance_id`). `config/providers/save` refuses new providers |
+| Add podcasts | `audioctl.py ma-add-podcast <feed url>... [--opml <url>]`: one `podcastfeed` instance per feed via the setup flow (`values: {"feed_url"}`); list with `music/podcasts/library_items` |
+| Test playback | `audioctl.py test-play -p <player> -s 10|30|60|90 [--volume N]` (see the debug skill) |
 | Logs | `logging/get` (admin scope) |
 
 Names drift between releases. On an unknown-command error, read

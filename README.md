@@ -20,7 +20,7 @@ private git repo.
 | `install-client` | Squeezelite or snapclient (or shairport-sync, librespot) as a resilient systemd unit |
 | `connect-server` | Points clients at a server, enables MA providers, migrates between backends |
 | `set-speaker` | Changes an endpoint's output device: ALSA card, PipeWire sink, second speaker |
-| `debug` | Walks source -> server -> network -> client -> device; records the fix |
+| `debug` | Walks source -> server -> network -> client -> device, with a 10-90 s test play to a speaker or group; records the fix |
 | `groups` | Multi-room sync in MA, Snapcast, LMS or HA |
 | `music-assistant` | MA API: players, play media, volume, queues, playlists, DSP presets, logs, announcements |
 | `home-assistant` | `music_assistant` / `snapcast` / `squeezebox` integrations, media_player calls, automations |
@@ -37,6 +37,8 @@ audioctl.py ma players/cmd/volume_set '{"player_id":"<id>","volume_level":30}'
 audioctl.py lms serverstatus 0 100          # LMS, or MA's Squeezelite provider
 audioctl.py snap-status                     # Snapcast groups and clients
 audioctl.py ha GET /api/states/media_player.kitchen
+audioctl.py test-play -p "Living Room" -s 30 --volume 40   # 10/30/60/90 s of known media
+audioctl.py ma-add-podcast --opml https://example.com/feeds.opml
 ```
 
 ## Overlay (your private data)

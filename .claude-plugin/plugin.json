@@ -1,6 +1,6 @@
 {
   "name": "home-audio",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Network speakers and multi-room audio across backends (Music Assistant, Lyrion/Squeezelite, Snapcast): install servers and clients, inventory, set speakers, debug, drive the MA and Home Assistant APIs. Your installation lives in a private overlay.",
   "author": {
     "name": "Daniel Rosehill",
